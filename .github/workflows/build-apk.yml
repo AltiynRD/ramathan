@@ -37,6 +37,19 @@ jobs:
         working-directory: AudioSchedulerApp
         run: npm install react-native-sound
 
+      - name: Create Android assets folder
+        run: mkdir -p AudioSchedulerApp/android/app/src/main/assets
+
+      - name: Bundle JS into the APK
+        working-directory: AudioSchedulerApp
+        run: |
+          npx react-native bundle \
+            --platform android \
+            --dev false \
+            --entry-file index.js \
+            --bundle-output android/app/src/main/assets/index.android.bundle \
+            --assets-dest android/app/src/main/res
+
       - name: Create raw assets folder for Android audio
         run: mkdir -p AudioSchedulerApp/android/app/src/main/res/raw
 
@@ -48,7 +61,6 @@ jobs:
             echo "audio.mp3 copied successfully"
           else
             echo "WARNING: audio.mp3 not found in src/assets/ - playback will fail at runtime"
-            # Create a silent placeholder so the build doesn't fail
             dd if=/dev/zero bs=1 count=100 > \
                AudioSchedulerApp/android/app/src/main/res/raw/audio.mp3
           fi
