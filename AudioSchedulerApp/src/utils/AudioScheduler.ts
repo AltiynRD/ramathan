@@ -1,7 +1,6 @@
 import { useEffect, useRef } from 'react';
 import Sound from 'react-native-sound';
 
-// Fix: declare the module types inline since @types/react-native-sound may not be installed
 declare module 'react-native-sound';
 
 export interface ScheduleEntry {
@@ -11,60 +10,67 @@ export interface ScheduleEntry {
   time: string; // HH:MM:SS
 }
 
-export const useAudioScheduler = (schedule: ScheduleEntry[]): void => {
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const playedRef = useRef<Set<string>>(new Set());
+const playAudio = (): void => {
+  Sound.setCategory('Playback');
 
-  const playAudio = (): void => {
-    Sound.setCategory('Playback');
-
-    const sound = new Sound('audio.mp3', Sound.MAIN_BUNDLE, (error: Error | null) => {
-      if (error) {
-        console.error('[AudioScheduler] Failed to load audio:', error);
-        return;
+  const sound = new Sound('audio.mp3', Sound.MAIN_BUNDLE, (error: Error | null) => {
+    if (error) {
+      console.error('[AudioScheduler] Failed to load audio:', error);
+      return;
+    }
+    sound.play((success: boolean) => {
+      if (!success) {
+        console.error('[AudioScheduler] Playback failed');
       }
-      sound.play((success: boolean) => {
-        if (!success) {
-          console.error('[AudioScheduler] Playback failed');
-        }
-        sound.release();
-      });
+      sound.release();
     });
-  };
+  });
+};
+
+export const useAudioScheduler = (schedule: ScheduleEntry[]): void => {
+  const timeoutsRef = useRef<ReturnType<typeof setTimeout>[]>([]);
 
   useEffect(() => {
-    console.log('[AudioScheduler] Starting scheduler...');
+    console.log('[AudioScheduler] Scheduling all events on launch...');
 
-    intervalRef.current = setInterval(() => {
-      const now = new Date();
+    // Clear any previously registered timeouts
+    timeoutsRef.current.forEach(clearTimeout);
+    timeoutsRef.current = [];
 
-      const currentDate = now.toISOString().split('T')[0];
+    const now = new Date();
 
-      const hours = String(now.getHours()).padStart(2, '0');
-      const minutes = String(now.getMinutes()).padStart(2, '0');
-      const seconds = String(now.getSeconds()).padStart(2, '0');
-      const currentTime = `${hours}:${minutes}:${seconds}`;
+    schedule.forEach((entry: ScheduleEntry) => {
+      // Build a Date object from the entry's date + time
+      const scheduledAt = new Date(`${entry.date}T${entry.time}`);
+      const delay = scheduledAt.getTime() - now.getTime();
 
-      schedule.forEach((entry: ScheduleEntry) => {
-        const key = `${entry.id}-${entry.date}-${entry.time}`;
-
-        if (
-          entry.date === currentDate &&
-          entry.time === currentTime &&
-          !playedRef.current.has(key)
-        ) {
-          console.log(`[AudioScheduler] Triggering: ${entry.label}`);
-          playedRef.current.add(key);
-          playAudio();
-        }
-      });
-    }, 1000);
-
-    return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-        console.log('[AudioScheduler] Scheduler stopped.');
+      if (delay < 0) {
+        // Event is in the past, skip it
+        console.log(`[AudioScheduler] Skipping past event: "${entry.label}" was at ${entry.date} ${entry.time}`);
+        return;
       }
+
+      const hours = Math.floor(delay / 1000 / 60 / 60);
+      const minutes = Math.floor((delay / 1000 / 60) % 60);
+      const seconds = Math.floor((delay / 1000) % 60);
+      console.log(
+        `[AudioScheduler] "${entry.label}" scheduled in ${hours}h ${minutes}m ${seconds}s`
+      );
+
+      const timeout = setTimeout(() => {
+        console.log(`[AudioScheduler] Triggering: "${entry.label}"`);
+        playAudio();
+      }, delay);
+
+      timeoutsRef.current.push(timeout);
+    });
+
+    console.log(`[AudioScheduler] ${timeoutsRef.current.length} event(s) armed.`);
+
+    // Cleanup all timeouts if the component unmounts
+    return () => {
+      timeoutsRef.current.forEach(clearTimeout);
+      console.log('[AudioScheduler] All scheduled events cleared.');
     };
   }, [schedule]);
 };
