@@ -1,0 +1,14 @@
+[
+  {
+    "id": "1",
+    "label": "Morning Alert",
+    "date": "2025-01-01",
+    "time": "08:00:00"
+  },
+  {
+    "id": "2",
+    "label": "Afternoon Alert",
+    "date": "2025-01-01",
+    "time": "14:00:00"
+  }
+]
