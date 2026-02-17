@@ -1,0 +1,78 @@
+name: Build Android APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - 'AudioSchedulerApp/**'
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: AudioSchedulerApp/package-lock.json
+
+      - name: Install dependencies
+        working-directory: AudioSchedulerApp
+        run: npm install
+
+      - name: Install react-native-sound
+        working-directory: AudioSchedulerApp
+        run: npm install react-native-sound
+
+      - name: Create raw assets folder for Android audio
+        run: mkdir -p AudioSchedulerApp/android/app/src/main/res/raw
+
+      - name: Copy audio.mp3 to Android raw assets
+        run: |
+          if [ -f "AudioSchedulerApp/src/assets/audio.mp3" ]; then
+            cp AudioSchedulerApp/src/assets/audio.mp3 \
+               AudioSchedulerApp/android/app/src/main/res/raw/audio.mp3
+            echo "audio.mp3 copied successfully"
+          else
+            echo "WARNING: audio.mp3 not found in src/assets/ - playback will fail at runtime"
+            # Create a silent placeholder so the build doesn't fail
+            dd if=/dev/zero bs=1 count=100 > \
+               AudioSchedulerApp/android/app/src/main/res/raw/audio.mp3
+          fi
+
+      - name: Make Gradle wrapper executable
+        working-directory: AudioSchedulerApp/android
+        run: chmod +x gradlew
+
+      - name: Cache Gradle packages
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ hashFiles('AudioSchedulerApp/android/**/*.gradle*') }}
+          restore-keys: gradle-
+
+      - name: Build debug APK
+        working-directory: AudioSchedulerApp/android
+        run: ./gradlew assembleDebug --no-daemon
+
+      - name: Upload APK as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: AudioSchedulerApp-debug-apk
+          path: AudioSchedulerApp/android/app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 7
