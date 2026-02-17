@@ -1,7 +1,7 @@
 name: Create React Native App
 
 on:
-  workflow_dispatch: # Triggered manually from the GitHub Actions tab
+  workflow_dispatch:
 
 jobs:
   create-rn-app:
@@ -26,6 +26,9 @@ jobs:
           npx @react-native-community/cli init AudioSchedulerApp \
             --directory AudioSchedulerApp \
             --skip-install
+
+      - name: Remove nested git repo (fixes commit error)
+        run: rm -rf AudioSchedulerApp/.git
 
       - name: Install app dependencies
         working-directory: AudioSchedulerApp
